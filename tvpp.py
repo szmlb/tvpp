@@ -21,12 +21,14 @@ class TrapezoidalVelocityProfilePlanner:
                 is_vconst = True
                 Ta = self.vmax[joint_idx] / self.amax[joint_idx]
                 T = (np.abs(h) * self.amax[joint_idx] + self.vmax[joint_idx]**2) / (self.amax[joint_idx] * self.vmax[joint_idx])
+                return is_vconst, Ta, T, self.vmax[joint_idx], h
             else:
                 # no constant velocity
                 is_vconst = False
                 Ta = (np.abs(h) / self.amax[joint_idx])**(1.0/2.0)
                 T = 2.0 * Ta
-            return is_vconst, Ta, T, h
+                vlim = self.amax[joint_idx] * Ta
+                return is_vconst, Ta, T, vlim, h
         elif len(args) == 1:
             # v0 != 0
             v0 = args[0]
@@ -57,7 +59,7 @@ class TrapezoidalVelocityProfilePlanner:
             max_Ta = 0
             for joint_idx in range(self.dof):
                 # check if constant velocity exists
-                is_vconst, Ta, T, h = self.checkSingleAxisTime(joint_idx, q0[joint_idx], qn[joint_idx])
+                is_vconst, Ta, T, vlim, h = self.checkSingleAxisTime(joint_idx, q0[joint_idx], qn[joint_idx])
                 if T > max_T:
                     max_T = T
                     max_Ta = Ta
@@ -155,25 +157,13 @@ class TrapezoidalVelocityProfilePlanner:
             time_list.append(ttmp)
 
             if ttmp <= Ta:
-                if is_v0_zero:
-                    position.append(q0 + v0 * ttmp + np.sign(qn-q0) * amax / 2.0 * ttmp**2 - v0 / (2.0 * Ta) * ttmp**2)
-                    velocity.append(v0 + np.sign(qn-q0) * amax * ttmp - v0 / Ta * ttmp)
-                    acceleration.append(np.sign(qn-q0) * amax)
-                else:
-                    position.append(q0 + v0 * ttmp + (np.sign(qn-q0) * vmax - v0) /(2.0 * Ta) * ttmp**2)
-                    velocity.append(v0 + (np.sign(qn-q0) * vmax - v0) / Ta * ttmp)
-                    acceleration.append(np.sign(qn-q0) * amax)
-
+                position.append(q0 + v0 * ttmp + (np.sign(qn-q0) * vmax - v0) /(2.0 * Ta) * ttmp**2)
+                velocity.append(v0 + (np.sign(qn-q0) * vmax - v0) / Ta * ttmp)
+                acceleration.append(np.sign(qn-q0) * amax)
             elif ttmp > Ta and ttmp <= T:
-                if is_v0_zero:
-                    position.append(qn - np.sign(qn-q0) * amax / 2.0 * (T-ttmp)**2)
-                    velocity.append(np.sign(qn-q0) * amax * (T-ttmp))
-                    acceleration.append(-np.sign(qn-q0) * amax)
-                else:
-                    position.append(qn - np.sign(qn-q0) * vmax / (2.0 * Td) * (T-ttmp)**2)
-                    velocity.append(np.sign(qn-q0) * vmax / Td * (T-ttmp))
-                    acceleration.append(-np.sign(qn-q0) * amax)
-
+                position.append(qn - np.sign(qn-q0) * vmax / (2.0 * Td) * (T-ttmp)**2)
+                velocity.append(np.sign(qn-q0) * vmax / Td * (T-ttmp))
+                acceleration.append(-np.sign(qn-q0) * amax)
             else:
                 position.append(qn)
                 velocity.append(0.0)
@@ -190,14 +180,14 @@ class TrapezoidalVelocityProfilePlanner:
 
         if len(args) == 0:
             # check if constant velocity exists
-            is_vconst, Ta, T, h = self.checkSingleAxisTime(joint_idx, q0, qn)
+            is_vconst, Ta, T, vlim, h = self.checkSingleAxisTime(joint_idx, q0, qn)
 
             if is_vconst:
                 # with constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta, T, q0, qn)
+                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
             else:
                 # no constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta, T, q0, qn)
+                time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
 
             return time_list, position, velocity, acceleration
 
@@ -209,7 +199,7 @@ class TrapezoidalVelocityProfilePlanner:
 
             if is_vconst:
                 # with constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
+                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
             else:
                 # no constant velocity
                 time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
@@ -232,15 +222,17 @@ class TrapezoidalVelocityProfilePlanner:
             is_vconst_series = []
             Ta_series = []
             T_series = []
+            vlim_series = []
             h_series = []
 
             # compute acceleration time for each interval: from q[k] to q[k+1]
             for wp_idx in range(len(waypoints)-1):
                 # check if constant velocity exists
-                is_vconst, Ta, T, h = self.checkSingleAxisTime(joint_idx, waypoints[wp_idx], waypoints[wp_idx+1])
+                is_vconst, Ta, T, vlim, h = self.checkSingleAxisTime(joint_idx, waypoints[wp_idx], waypoints[wp_idx+1])
                 is_vconst_series.append(is_vconst)
                 Ta_series.append(Ta)
                 T_series.append(T)
+                vlim_series.append(vlim)
                 h_series.append(h)
         else:
             # Compute series of acceleration time
@@ -263,10 +255,11 @@ class TrapezoidalVelocityProfilePlanner:
                     vlim_series.append(vlim)
                     h_series.append(h)
                 else:
-                    is_vconst, Ta, T, h = self.checkSingleAxisTime(joint_idx, waypoints[wp_idx], waypoints[wp_idx+1])
+                    is_vconst, Ta, T, vlim, h = self.checkSingleAxisTime(joint_idx, waypoints[wp_idx], waypoints[wp_idx+1])
                     is_vconst_series.append(is_vconst)
                     Ta_series.append(Ta)
                     T_series.append(T)
+                    vlim_series.append(vlim)
                     h_series.append(h)
 
         # blending motion
@@ -283,7 +276,7 @@ class TrapezoidalVelocityProfilePlanner:
                     if is_v0_zero == False and wp_idx == 0:
                         _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
                     else:
-                        _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
+                        _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
 
                 # concatinate
                 if wp_idx != 0:
@@ -321,7 +314,7 @@ class TrapezoidalVelocityProfilePlanner:
                     if is_v0_zero == False and wp_idx == 0:
                         _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
                     else:
-                        _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
+                        _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
 
                 # concatinate
                 if wp_idx != 0:
