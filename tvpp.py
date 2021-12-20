@@ -462,16 +462,6 @@ class TrapezoidalVelocityProfilePlanner:
                     velocity = _velocity
                     acceleration = _acceleration
 
-                # correct acceleration due to numerical error
-                for idx in range(len(acceleration)-1):
-                    if idx > 0:
-                        sign_pre = np.sign(int(acceleration[idx-1]))
-                        sign_curr = np.sign(int(acceleration[idx]))
-                        sign_next = np.sign(int(acceleration[idx+1]))
-
-                        if sign_pre != sign_curr and sign_curr != sign_next:
-                            acceleration[idx] = acceleration[idx+1]
-
         return time_list, position, velocity, acceleration
 
     def getMultiAxisSingleMotionProfile(self, q0, qn, *args):
@@ -700,16 +690,5 @@ class TrapezoidalVelocityProfilePlanner:
                         position[joint_idx] = _position[joint_idx]
                         velocity[joint_idx] = _velocity[joint_idx]
                         acceleration[joint_idx] = _acceleration[joint_idx]
-
-                # correct acceleration due to numerical error
-                for joint_idx in range(self.dof):
-                    for idx in range(len(acceleration[joint_idx])-1):
-                        if idx > 0:
-                            sign_pre = np.sign(int(acceleration[joint_idx][idx-1]))
-                            sign_curr = np.sign(int(acceleration[joint_idx][idx]))
-                            sign_next = np.sign(int(acceleration[joint_idx][idx+1]))
-
-                            if sign_pre != sign_curr and sign_curr != sign_next:
-                                acceleration[joint_idx][idx] = acceleration[joint_idx][idx+1]
 
         return time_list, position, velocity, acceleration
