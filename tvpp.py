@@ -11,10 +11,10 @@ class TrapezoidalVelocityProfilePlanner:
 
     def checkSingleAxisTime(self, joint_idx, q0, qn, *args):
 
+        h = qn - q0
         if len(args) == 0:
             # v0 = 0
             # check if constant velocity exists
-            h = qn - q0
             is_vconst = True
             if np.abs(h) >= self.vmax[joint_idx]**2 / self.amax[joint_idx]:
                 # with constant velocity
@@ -32,22 +32,27 @@ class TrapezoidalVelocityProfilePlanner:
         elif len(args) == 1:
             # v0 != 0
             v0 = args[0]
+
+            # check feasibility
+            if self.amax[joint_idx] * np.abs(h) < np.abs(v0**2)/2.0:
+                print("TVPP infeasible: waypoints and too close and v0 is not realizable.")
+                return
+
             # check if constant velocity exists
-            h = qn - q0
             is_vconst = True
             if np.abs(h) * self.amax[joint_idx] >= self.vmax[joint_idx]**2 - v0**2 / 2.0:
                 # with constant velocity
                 is_vconst = True
-                Ta = (self.vmax[joint_idx] - v0) / self.amax[joint_idx]
-                Td = (self.vmax[joint_idx] - 0.0) / self.amax[joint_idx]
-                T = np.abs(h) / self.vmax[joint_idx] + self.vmax[joint_idx] / (2.0 * self.amax[joint_idx]) * ((1.0 - v0 / self.vmax[joint_idx])**2 + 1.0)
+                Ta = np.abs((np.sign(h) * self.vmax[joint_idx] - v0) / self.amax[joint_idx])
+                Td = np.abs((np.sign(h) * self.vmax[joint_idx] - 0.0) / self.amax[joint_idx])
+                T = np.abs(h) / self.vmax[joint_idx] + self.vmax[joint_idx] / (2.0 * self.amax[joint_idx]) * ((1.0 - v0 / (np.sign(h) * self.vmax[joint_idx]))**2 + 1.0)
                 return is_vconst, Ta, Td, T, self.vmax[joint_idx], h
             else:
                 # no constant velocity
                 is_vconst = False
-                vlim = (np.abs(h) * self.amax[joint_idx] +  v0**2 / 2.0)**(1.0/2.0)
-                Ta = (vlim - v0) / self.amax[joint_idx]
-                Td = (vlim - 0.0) / self.amax[joint_idx]
+                vlim = (np.abs(h) * self.amax[joint_idx] + v0**2 / 2.0)**(1.0/2.0)
+                Ta = np.abs((np.sign(h) * vlim - v0) / self.amax[joint_idx])
+                Td = np.abs((np.sign(h) * vlim - 0.0) / self.amax[joint_idx])
                 T = Ta + Td
                 return is_vconst, Ta, Td, T, vlim, h
         elif len(args) == 2:
@@ -55,22 +60,27 @@ class TrapezoidalVelocityProfilePlanner:
             # vn != 0
             v0 = args[0]
             vn = args[1]
+
+            # check feasibility
+            if self.amax[joint_idx] * np.abs(h) < np.abs(v0**2 - vn**2)/2.0:
+                print("TVPP infeasible: waypoints and too close and v0 / vn is not realizable.")
+                return
+
             # check if constant velocity exists
-            h = qn - q0
             is_vconst = True
-            if np.abs(h) * self.amax[joint_idx] >= self.vmax[joint_idx]**2 - v0**2 / 2.0:
+            if np.abs(h) * self.amax[joint_idx] >= self.vmax[joint_idx]**2 - (v0**2 + vn**2) / 2.0:
                 # with constant velocity
                 is_vconst = True
-                Ta = (self.vmax[joint_idx] - v0) / self.amax[joint_idx]
-                Td = (self.vmax[joint_idx] - vn) / self.amax[joint_idx]
-                T = np.abs(h) / self.vmax[joint_idx] + self.vmax[joint_idx] / (2.0 * self.amax[joint_idx]) * ((1.0 - v0 / self.vmax[joint_idx])**2 + (1.0 - vn / self.vmax[joint_idx])**2)
+                Ta = np.abs((np.sign(h) * self.vmax[joint_idx] - v0) / self.amax[joint_idx])
+                Td = np.abs((np.sign(h) * self.vmax[joint_idx] - vn) / self.amax[joint_idx])
+                T = np.abs(h) / self.vmax[joint_idx] + self.vmax[joint_idx] / (2.0 * self.amax[joint_idx]) * ((1.0 - v0 / (np.sign(h) * self.vmax[joint_idx]))**2 + (1.0 - vn / (np.sign(h) * self.vmax[joint_idx]))**2)
                 return is_vconst, Ta, Td, T, self.vmax[joint_idx], h
             else:
                 # no constant velocity
                 is_vconst = False
                 vlim = (np.abs(h) * self.amax[joint_idx] +  (v0**2 + vn**2) / 2.0)**(1.0/2.0)
-                Ta = (vlim - v0) / self.amax[joint_idx]
-                Td = (vlim - vn) / self.amax[joint_idx]
+                Ta = np.abs((np.sign(h) * vlim - v0) / self.amax[joint_idx])
+                Td = np.abs((np.sign(h) * vlim - vn) / self.amax[joint_idx])
                 T = Ta + Td
                 return is_vconst, Ta, Td, T, vlim, h
 
@@ -177,11 +187,12 @@ class TrapezoidalVelocityProfilePlanner:
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
                 velocity.append(vn + (np.sign(qn-q0) * vmax - vn) / Td * (T-ttmp))
                 acceleration.append(-np.sign(qn-q0) * amax)
-            else:
-                position.append(qn)
-                velocity.append(vn)
-                acceleration.append(0.0)
             itmp = itmp + 1
+
+        # TODO: add condition if final data satisfies terminal condition
+        position.append(qn)
+        velocity.append(vn)
+        acceleration.append(0.0)
 
         return time_list, position, velocity, acceleration
 
@@ -224,11 +235,12 @@ class TrapezoidalVelocityProfilePlanner:
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
                 velocity.append(vn + (np.sign(qn-q0) * vmax - vn) / Td * (T-ttmp))
                 acceleration.append(-np.sign(qn-q0) * amax)
-            else:
-                position.append(qn)
-                velocity.append(vn)
-                acceleration.append(0.0)
             itmp = itmp + 1
+
+        # TODO: add condition if final data satisfies terminal condition
+        position.append(qn)
+        velocity.append(vn)
+        acceleration.append(0.0)
 
         return time_list, position, velocity, acceleration
 
@@ -320,7 +332,7 @@ class TrapezoidalVelocityProfilePlanner:
                 T_series.append(T)
                 vlim_series.append(vlim)
                 h_series.append(h)
-        elif not is_v0_zero or not is_vn_zero:
+        elif is_v0_zero == False or is_vn_zero == False:
             # compute acceleration time for each interval: from q[k] to q[k+1]
             for wp_idx in range(len(waypoints)-1):
                 # check if constant velocity exists
