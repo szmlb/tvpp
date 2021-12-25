@@ -1,8 +1,15 @@
 import numpy as np
 import sys
 from numpy.core.numeric import Infinity
+from enum import Enum
+
+class BlendingType(Enum):
+    noblend = 1
+    addingblend = 2
+    nonzerovelblend = 2
 
 class TrapezoidalVelocityProfilePlanner:
+
     def __init__(self, dof, ts, vmax, amax) -> None:
         self.dof = dof
         self.ts = ts
@@ -190,6 +197,7 @@ class TrapezoidalVelocityProfilePlanner:
             itmp = itmp + 1
 
         # TODO: add condition if final data satisfies terminal condition
+        # TODO: this function needs to consider the effect of discretization
         position.append(qn)
         velocity.append(vn)
         acceleration.append(0.0)
@@ -238,6 +246,7 @@ class TrapezoidalVelocityProfilePlanner:
             itmp = itmp + 1
 
         # TODO: add condition if final data satisfies terminal condition
+        # TODO: this function needs to consider the effect of discretization
         position.append(qn)
         velocity.append(vn)
         acceleration.append(0.0)
@@ -294,7 +303,7 @@ class TrapezoidalVelocityProfilePlanner:
 
             return time_list, position, velocity, acceleration
 
-    def getSingleAxisMultiMotionProfile(self, joint_idx, waypoints, blending=False, *args):
+    def getSingleAxisMultiMotionProfile(self, joint_idx, waypoints, blending, *args):
         time_list = []
         position = []
         velocity = []
@@ -381,7 +390,7 @@ class TrapezoidalVelocityProfilePlanner:
                     _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
 
             # blending motion
-            if blending == False:
+            if blending == BlendingType.noblend:
                 # concatinate
                 if wp_idx != 0:
                     # Modify last acceleration for waypoint[k]
@@ -405,7 +414,7 @@ class TrapezoidalVelocityProfilePlanner:
                     velocity = _velocity
                     acceleration = _acceleration
 
-            elif blending == True:
+            elif blending == BlendingType.addingblend:
                 # concatinate
                 if wp_idx != 0:
                     if is_v0_zero == False and wp_idx == 1:
@@ -534,7 +543,7 @@ class TrapezoidalVelocityProfilePlanner:
 
         return time_list, position, velocity, acceleration
 
-    def getMultiAxisMultiMotionProfile(self, waypoints, blending=False, *args):
+    def getMultiAxisMultiMotionProfile(self, waypoints, blending, *args):
         time_list = []
         position = [[] for i in range(self.dof)]
         velocity = [[] for i in range(self.dof)]
@@ -599,7 +608,7 @@ class TrapezoidalVelocityProfilePlanner:
             else:
                 _time_list, _position, _velocity, _acceleration = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1])
 
-            if blending == False:
+            if blending == BlendingType.noblend:
                 # concatinate
                 for joint_idx in range(self.dof):
                     if wp_idx != 0:
@@ -625,7 +634,7 @@ class TrapezoidalVelocityProfilePlanner:
                         position[joint_idx] = _position[joint_idx]
                         velocity[joint_idx] = _velocity[joint_idx]
                         acceleration[joint_idx] = _acceleration[joint_idx]
-            elif blending == True:
+            elif blending == BlendingType.addingblend:
 
                 # concatinate
                 if wp_idx != 0:
