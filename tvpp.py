@@ -6,7 +6,7 @@ from enum import Enum
 class BlendingType(Enum):
     noblend = 1
     addingblend = 2
-    nonzerovelblend = 2
+    nonzerovelblend = 3
 
 class TrapezoidalVelocityProfilePlanner:
 
