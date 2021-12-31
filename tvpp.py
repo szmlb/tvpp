@@ -178,6 +178,7 @@ class TrapezoidalVelocityProfilePlanner:
 
         itmp = 0
         ttmp = 0.0
+        n_Td = 0
         while(ttmp <= T):
             ttmp = self.ts * itmp
             time_list.append(ttmp)
@@ -191,6 +192,7 @@ class TrapezoidalVelocityProfilePlanner:
                 velocity.append(np.sign(qn-q0) * vmax)
                 acceleration.append(0.0)
             elif ttmp > T - Td and ttmp <= T:
+                n_Td = n_Td + 1
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
                 velocity.append(vn + (np.sign(qn-q0) * vmax - vn) / Td * (T-ttmp))
                 acceleration.append(-np.sign(qn-q0) * amax)
@@ -198,11 +200,13 @@ class TrapezoidalVelocityProfilePlanner:
 
         # TODO: add condition if final data satisfies terminal condition
         # TODO: this function needs to consider the effect of discretization
+        n_Td = n_Td + 1
         position.append(qn)
         velocity.append(vn)
-        acceleration.append(0.0)
+        #acceleration.append(0.0)
+        acceleration.append(acceleration[-1])
 
-        return time_list, position, velocity, acceleration
+        return time_list, position, velocity, acceleration, n_Td
 
     def getProfileWithoutConstVelocity(self, vmax, amax, Ta, T, q0, qn, *args):
         time_list = []
@@ -231,6 +235,7 @@ class TrapezoidalVelocityProfilePlanner:
 
         itmp = 0
         ttmp = 0.0
+        n_Ta = 0
         while(ttmp <= T):
             ttmp = self.ts * itmp
             time_list.append(ttmp)
@@ -240,6 +245,7 @@ class TrapezoidalVelocityProfilePlanner:
                 velocity.append(v0 + (np.sign(qn-q0) * vmax - v0) / Ta * ttmp)
                 acceleration.append(np.sign(qn-q0) * amax)
             elif ttmp > Ta and ttmp <= T:
+                n_Ta = n_Ta + 1
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
                 velocity.append(vn + (np.sign(qn-q0) * vmax - vn) / Td * (T-ttmp))
                 acceleration.append(-np.sign(qn-q0) * amax)
@@ -247,11 +253,13 @@ class TrapezoidalVelocityProfilePlanner:
 
         # TODO: add condition if final data satisfies terminal condition
         # TODO: this function needs to consider the effect of discretization
+        n_Ta = n_Ta + 1
         position.append(qn)
         velocity.append(vn)
-        acceleration.append(0.0)
+        #acceleration.append(0.0)
+        acceleration.append(acceleration[-1])
 
-        return time_list, position, velocity, acceleration
+        return time_list, position, velocity, acceleration, n_Ta
 
     def getSingleAxisSingleMotionProfile(self, joint_idx, q0, qn, *args):
         time_list = []
@@ -265,10 +273,10 @@ class TrapezoidalVelocityProfilePlanner:
 
             if is_vconst:
                 # with constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
+                time_list, position, velocity, acceleration, n = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
             else:
                 # no constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
+                time_list, position, velocity, acceleration, n = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn)
 
             return time_list, position, velocity, acceleration
 
@@ -280,10 +288,10 @@ class TrapezoidalVelocityProfilePlanner:
 
             if is_vconst:
                 # with constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
+                time_list, position, velocity, acceleration, n = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
             else:
                 # no constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
+                time_list, position, velocity, acceleration, n = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, Td)
 
             return time_list, position, velocity, acceleration
 
@@ -296,10 +304,10 @@ class TrapezoidalVelocityProfilePlanner:
 
             if is_vconst:
                 # with constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, vn, Td)
+                time_list, position, velocity, acceleration, n = self.getProfileWithConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, vn, Td)
             else:
                 # no constant velocity
-                time_list, position, velocity, acceleration = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, vn, Td)
+                time_list, position, velocity, acceleration, n = self.getProfileWithoutConstVelocity(vlim, self.amax[joint_idx], Ta, T, q0, qn, v0, vn, Td)
 
             return time_list, position, velocity, acceleration
 
@@ -375,19 +383,19 @@ class TrapezoidalVelocityProfilePlanner:
             if is_vconst_series[wp_idx]:
                 # with constant velocity
                 if is_v0_zero == False and wp_idx == 0:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
                 elif is_vn_zero == False and wp_idx == len(waypoints)-2:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn, Td_series[wp_idx])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn, Td_series[wp_idx])
                 else:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithConstVelocity(self.vmax[joint_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
             else:
                 # no constant velocity
                 if is_v0_zero == False and wp_idx == 0:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], v0, Td_series[wp_idx])
                 elif is_vn_zero == False and wp_idx == len(waypoints)-2:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn, Td_series[wp_idx])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn, Td_series[wp_idx])
                 else:
-                    _time_list, _position, _velocity, _acceleration = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
+                    _time_list, _position, _velocity, _acceleration, n_Td = self.getProfileWithoutConstVelocity(vlim_series[wp_idx], self.amax[joint_idx], Ta_series[wp_idx], T_series[wp_idx], waypoints[wp_idx], waypoints[wp_idx+1])
 
             # blending motion
             if blending == BlendingType.noblend:
@@ -427,7 +435,8 @@ class TrapezoidalVelocityProfilePlanner:
                         min_Ta = min(Ta_cmpr_list)
 
                     # looking back to (t - Tamin) and start adding two positions, velocities, and accelerations
-                    back_idx = round(min_Ta / self.ts)
+                    #back_idx = round(min_Ta / self.ts)
+                    back_idx = n_Td - 1
 
                     is_direction_change = False
                     # check if direction change happens and resulting acceleration would violate acceleration constraint
@@ -490,10 +499,10 @@ class TrapezoidalVelocityProfilePlanner:
 
                 if is_vconst:
                     # with constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx])
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx])
                 else:
                     # no constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx])
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx])
         elif len(args) == 1:
             v0 = args[0]
 
@@ -512,10 +521,10 @@ class TrapezoidalVelocityProfilePlanner:
 
                 if is_vconst:
                     # with constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], max_Td)
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], max_Td)
                 else:
                     # no constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], max_Td)
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], max_Td)
         elif len(args) == 2:
             v0 = args[0]
             vn = args[1]
@@ -536,12 +545,12 @@ class TrapezoidalVelocityProfilePlanner:
 
                 if is_vconst:
                     # with constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], vn[joint_idx], max_Td)
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], vn[joint_idx], max_Td)
                 else:
                     # no constant velocity
-                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx] = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], vn[joint_idx], max_Td)
+                    time_list, position[joint_idx], velocity[joint_idx], acceleration[joint_idx], n_Td = self.getProfileWithoutConstVelocity(_vmax, _amax, max_Ta, max_T, q0[joint_idx], qn[joint_idx], v0[joint_idx], vn[joint_idx], max_Td)
 
-        return time_list, position, velocity, acceleration
+        return time_list, position, velocity, acceleration, n_Td
 
     def getMultiAxisMultiMotionProfile(self, waypoints, blending, *args):
         time_list = []
@@ -602,11 +611,11 @@ class TrapezoidalVelocityProfilePlanner:
         for wp_idx in range(len(waypoints)-1):
             # compute synchronized trajectories
             if is_v0_zero == False and wp_idx == 0:
-                _time_list, _position, _velocity, _acceleration = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1], v0)
+                _time_list, _position, _velocity, _acceleration, n_Td = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1], v0)
             elif is_vn_zero == False and wp_idx == len(waypoints)-1:
-                _time_list, _position, _velocity, _acceleration = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn)
+                _time_list, _position, _velocity, _acceleration, n_Td = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1], 0.0, vn)
             else:
-                _time_list, _position, _velocity, _acceleration = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1])
+                _time_list, _position, _velocity, _acceleration, n_Td = self.getMultiAxisSingleMotionProfile(waypoints[wp_idx], waypoints[wp_idx+1])
 
             if blending == BlendingType.noblend:
                 # concatinate
@@ -649,7 +658,8 @@ class TrapezoidalVelocityProfilePlanner:
                         min_Ta = min(Ta_cmpr_list)
 
                     # looking back to (t - Tamin) and start adding two positions, velocities, and accelerations
-                    back_idx = round(min_Ta / self.ts)
+                    #back_idx = round(min_Ta / self.ts)
+                    back_idx = n_Td - 1
 
                     is_direction_change = False
                     for joint_idx in range(self.dof):
