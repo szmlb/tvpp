@@ -190,7 +190,10 @@ class TrapezoidalVelocityProfilePlanner:
             elif ttmp > Ta and ttmp <= T - Td:
                 position.append(q0 + v0 * Ta / 2.0 + np.sign(qn-q0) * vmax * (ttmp - Ta / 2.0))
                 velocity.append(np.sign(qn-q0) * vmax)
-                acceleration.append(0.0)
+                if ttmp >= T - Td - self.ts/2.0:
+                    acceleration.append(-np.sign(qn-q0) * amax)
+                else:
+                    acceleration.append(0.0)
             elif ttmp > T - Td and ttmp <= T:
                 n_Td = n_Td + 1
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
@@ -198,12 +201,10 @@ class TrapezoidalVelocityProfilePlanner:
                 acceleration.append(-np.sign(qn-q0) * amax)
             itmp = itmp + 1
 
-        # TODO: add condition if final data satisfies terminal condition
-        # TODO: this function needs to consider the effect of discretization
+        # add final data
         n_Td = n_Td + 1
         position.append(qn)
         velocity.append(vn)
-        #acceleration.append(0.0)
         acceleration.append(acceleration[-1])
 
         return time_list, position, velocity, acceleration, n_Td
@@ -243,7 +244,10 @@ class TrapezoidalVelocityProfilePlanner:
             if ttmp <= Ta:
                 position.append(q0 + v0 * ttmp + (np.sign(qn-q0) * vmax - v0) /(2.0 * Ta) * ttmp**2)
                 velocity.append(v0 + (np.sign(qn-q0) * vmax - v0) / Ta * ttmp)
-                acceleration.append(np.sign(qn-q0) * amax)
+                if ttmp >= T - Td - self.ts/2.0:
+                    acceleration.append(-np.sign(qn-q0) * amax)
+                else:
+                    acceleration.append(np.sign(qn-q0) * amax)
             elif ttmp > Ta and ttmp <= T:
                 n_Ta = n_Ta + 1
                 position.append(qn - vn * (T - ttmp) - (np.sign(qn-q0) * vmax - vn) / (2.0 * Td) * (T-ttmp)**2)
@@ -251,12 +255,10 @@ class TrapezoidalVelocityProfilePlanner:
                 acceleration.append(-np.sign(qn-q0) * amax)
             itmp = itmp + 1
 
-        # TODO: add condition if final data satisfies terminal condition
-        # TODO: this function needs to consider the effect of discretization
+        # add final data
         n_Ta = n_Ta + 1
         position.append(qn)
         velocity.append(vn)
-        #acceleration.append(0.0)
         acceleration.append(acceleration[-1])
 
         return time_list, position, velocity, acceleration, n_Ta
@@ -435,7 +437,6 @@ class TrapezoidalVelocityProfilePlanner:
                         min_Ta = min(Ta_cmpr_list)
 
                     # looking back to (t - Tamin) and start adding two positions, velocities, and accelerations
-                    #back_idx = round(min_Ta / self.ts)
                     back_idx = n_Td - 1
 
                     is_direction_change = False
@@ -468,7 +469,13 @@ class TrapezoidalVelocityProfilePlanner:
                             if itmp < back_idx + 1:
                                 position[-back_idx-1 + itmp] = position[-back_idx-1 + itmp] + (_position[itmp] - _position[0])
                                 velocity[-back_idx-1 + itmp] = velocity[-back_idx-1 + itmp] + _velocity[itmp]
-                                acceleration[-back_idx-1 + itmp] = acceleration[-back_idx-1 + itmp] + _acceleration[itmp]
+                                if itmp == 0:
+                                        acceleration[-back_idx-1 + itmp] = acceleration[-back_idx-1 + itmp] + _acceleration[itmp]
+                                else:
+                                    if  np.sign(_acceleration[itmp-1]) != np.sign(_acceleration[itmp]):
+                                        acceleration[-back_idx-1 + itmp] = _acceleration[itmp]
+                                    else:
+                                        acceleration[-back_idx-1 + itmp] = acceleration[-back_idx-1 + itmp] + _acceleration[itmp]
                             else:
                                 time_list.append(time_list[-1]+self.ts)
                                 position.append(_position[itmp])
@@ -658,7 +665,6 @@ class TrapezoidalVelocityProfilePlanner:
                         min_Ta = min(Ta_cmpr_list)
 
                     # looking back to (t - Tamin) and start adding two positions, velocities, and accelerations
-                    #back_idx = round(min_Ta / self.ts)
                     back_idx = n_Td - 1
 
                     is_direction_change = False
@@ -695,7 +701,13 @@ class TrapezoidalVelocityProfilePlanner:
                                 if itmp < back_idx + 1:
                                     position[joint_idx][-back_idx-1 + itmp] = position[joint_idx][-back_idx-1 + itmp] + (_position[joint_idx][itmp] - _position[joint_idx][0])
                                     velocity[joint_idx][-back_idx-1 + itmp] = velocity[joint_idx][-back_idx-1 + itmp] + _velocity[joint_idx][itmp]
-                                    acceleration[joint_idx][-back_idx-1 + itmp] = acceleration[joint_idx][-back_idx-1 + itmp] + _acceleration[joint_idx][itmp]
+                                    if itmp == 0:
+                                        acceleration[joint_idx][-back_idx-1 + itmp] = acceleration[joint_idx][-back_idx-1 + itmp] + _acceleration[joint_idx][itmp]
+                                    else:
+                                        if np.sign(_acceleration[joint_idx][itmp-1]) != np.sign(_acceleration[joint_idx][itmp]):
+                                            acceleration[joint_idx][-back_idx-1 + itmp] = _acceleration[joint_idx][itmp]
+                                        else:
+                                            acceleration[joint_idx][-back_idx-1 + itmp] = acceleration[joint_idx][-back_idx-1 + itmp] + _acceleration[joint_idx][itmp]
                                 else:
                                     if joint_idx == 0:
                                         time_list.append(time_list[-1]+self.ts)
